@@ -3,64 +3,57 @@ package br.com.alura.forum.service
 import br.com.alura.forum.dto.TopicoForm
 import br.com.alura.forum.dto.TopicoFormUpdate
 import br.com.alura.forum.dto.TopicoView
+import br.com.alura.forum.dto.TopicosPorCategoriaDto
 import br.com.alura.forum.exception.NotFoundException
 import br.com.alura.forum.mapper.TopicoFormMapper
 import br.com.alura.forum.mapper.TopicoViewMapper
-import br.com.alura.forum.model.Topico
+import br.com.alura.forum.repository.TopicoRepository
+import org.springframework.data.domain.Page
+import org.springframework.data.domain.Pageable
 import org.springframework.stereotype.Service
 
 @Service
 class TopicoService(
-    private var topicos: MutableList<Topico> = mutableListOf(),
+    private val repository: TopicoRepository,
     private val topicoViewMapper: TopicoViewMapper,
     private val topicoFormMapper: TopicoFormMapper
 ) {
-    fun listar(): List<TopicoView> {
+    fun listar(nomeCurso: String?,
+               paginacao: Pageable
+    ): Page<TopicoView> {
+        val topicos = nomeCurso?.let {
+            repository.findByCursoNome(nomeCurso, paginacao)
+        } ?: repository.findAll(paginacao)
         return topicos.map {
             topicoViewMapper.map(it)
         }
     }
 
     fun buscarPorId(id: Long): TopicoView {
-        val topico =  topicos.filter {
-            it.id == id
-        }.firstOrNull()?.let {
-            return topicoViewMapper.map(it)
-        } ?: throw (NotFoundException())
+        val topico = repository.findById(id).orElseThrow { NotFoundException() }
+        return topicoViewMapper.map(topico)
     }
 
     fun cadastrar(form: TopicoForm): TopicoView {
         val topico = topicoFormMapper.map(form)
-        topico.id = topicos.size.toLong() + 1
-        topicos.add(topico)
+        repository.save(topico)
         return topicoViewMapper.map(topico)
     }
 
     fun atualizar(form: TopicoFormUpdate): TopicoView {
-        val topico =  topicos.filter {
-            it.id == form.id
-        }.firstOrNull()?.let {
-            topicos.remove(it)
-            val topicoAtualizado = Topico(
-                id = form.id,
-                titulo = form.titulo,
-                mensagem = form.mensagem,
-                autor = it.autor,
-                curso = it.curso,
-                respostas = it.respostas,
-                status = it.status,
-                dataCriacao = it.dataCriacao
-            )
-            topicos.add(topicoAtualizado)
-            return topicoViewMapper.map(topicoAtualizado)
-        } ?: throw (NotFoundException())
+        val topico = repository.findById(form.id).orElseThrow { NotFoundException() }
+        topico.titulo = form.titulo
+        topico.mensagem = form.mensagem
+        return topicoViewMapper.map(topico)
     }
 
     fun remover(id: Long) {
-        val topico = topicos.filter {
-            it.id == id
-        }.firstOrNull()?.let {
-            topicos.remove(it)
-        } ?: throw (NotFoundException())
+        repository.deleteById(id)
+    }
+
+    fun relatorio(): List<TopicosPorCategoriaDto> {
+        return repository.relatorio()
     }
 }
+
+
